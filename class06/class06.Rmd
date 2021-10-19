@@ -1,0 +1,239 @@
+---
+title: 'Class 6: R Functions'
+author: "Ethan Harding (PID: A15468670)"
+date: "10/14/2021"
+output: pdf_document
+---
+
+## A play with Rmarkdown
+This is some plain text. I can make things **bold**. I can also make things *italicized*
+
+```{r}
+# This is a code chunk
+plot(1:10)
+```
+
+
+## R functions
+
+In today's class we are going to write a function together that grades some students' work.
+
+Questions for today:
+
+> **Q1.** Write a function grade() to determine an overall grade from a vector of student homework assignment scores dropping the lowest single score. If a student misses a homework (i.e. has an NA value) this can be used as a score to be potentially dropped. Your final function should be adquately explained with code comments and be able to work on an example class gradebook such as this one in CSV format: “https://tinyurl.com/gradeinput” [3pts]
+
+```{r}
+# Example input vectors to start with
+student1 <- c(100, 100, 100, 100, 100, 100, 100, 90)
+student2 <- c(100, NA, 90, 90, 90, 90, 97, 80)
+student3 <- c(90, NA, NA, NA, NA, NA, NA, NA)
+```
+
+Let's start with student1 and find their average score.
+```{r}
+mean(student1)
+```
+
+But we want to drop the lowest score...
+We could try the **min()** function
+
+```{r}
+min(student1)
+```
+
+The **which.min()** function looks useful:
+
+```{r}
+which.min(student1)
+```
+
+*which.min()* gives the position of the lowest score
+
+```{r}
+# This would be the lowest score
+student1[ which.min(student1) ]
+```
+
+To drop the lowest value, I can use minus
+```{r}
+student1[ -which.min(student1) ]
+```
+
+Let's now use *mean()* to get the average minus the lowest score. 
+```{r}
+mean(student1[ -which.min(student1) ])
+```
+
+Let's look at student2 now
+```{r}
+student2
+```
+
+This will not work because of the *NA*, which is a missing homework 
+```{r}
+mean(student2[ -which.min(student2)] )
+```
+
+We need to remove the NA elements of the vector
+```{r}
+#which.min(student2)
+mean(student2[ -which.min(student2) ], na.rm=TRUE)
+```
+
+This is not what we want, we want to drop the *NA*, but this dropped the 80 (the lowest number and not the NA).
+
+Let's look at student 3.
+```{r}
+student3
+```
+
+```{r}
+mean(student3[ -which.min(student3) ], na.rm=TRUE)
+```
+
+One new idea/approach is to replace the NA (missing homework) with zero. 
+
+```{r}
+is.na(student2)
+```
+
+The **is.na()** function returns a logical vector where TRUE elemtns represent where the NA values are. 
+
+```{r}
+which(is.na(student2))
+```
+
+Now let's make the NA value into a zero. 
+```{r}
+student.prime <- student2
+student.prime
+student.prime[ which(is.na(student.prime)) ] = 0
+student.prime
+```
+
+Now we need to put this all together to get the average score dropping the lowest where we map the NA values to zero. 
+
+```{r}
+student.prime <- student2
+student.prime
+student.prime[ which(is.na(student.prime)) ] = 0
+student.prime
+mean(student.prime[ -which.min(student.prime) ])
+```
+
+```{r}
+student.prime
+```
+```{r}
+mean(c(100, 90, 90, 90, 90, 97, 80))
+```
+
+Let's make sure this works for student3 as well. 
+```{r}
+student.prime <- student3
+student.prime[ which(is.na(student.prime)) ] = 0
+mean(student.prime[ -which.min(student.prime) ])
+```
+
+We got our working snippet! Let's simplify it to create a function out of it
+```{r}
+x <- student3
+# Map NA values to zero
+x[ which(is.na(x)) ] = 0
+#Find the mean without the lowest value
+mean(x[ -which.min(x) ])
+```
+
+Now we can use this as the body of the function
+We can highlight the code we want to use as the body of the function, click on *code*, then *extract function*
+```{r}
+x <- student3
+grade <- function(x) {
+  # Make sure our scores are all numbers
+  x <- as.numeric(x)
+  # Map NA values to zero
+  x[ which(is.na(x)) ] = 0
+  #Find the mean without the lowest value
+  mean(x[ -which.min(x) ])
+}
+```
+
+```{r}
+grade(student1)
+grade(student2)
+grade(student3)
+```
+
+
+
+Now read the full gradebook CSV file. 
+```{r}
+scores <- read.csv("https://tinyurl.com/gradeinput", row.names=1)
+scores 
+```
+
+Use for one student
+```{r}
+scores[10,]
+# Row number corresponds to a student number
+grade(as.numeric(scores[10,]))
+```
+
+
+> **Q2.** Using your grade() function and the supplied gradebook, Who is the top scoring student overall in the gradebook? [3pts]
+
+Apply the grade function to the gradebook by using **apply()** function.
+```{r}
+gradebook.scores <- apply(scores, 1, grade)
+# apply(X, MARGIN, FUN)
+# X: array / matrix
+# MARGIN: 1=row, 2=columns
+# FUN: function to be applied
+gradebook.scores
+```
+
+Use **which.max()** to find the highest scoring student. 
+```{r}
+which.max(gradebook.scores)
+```
+
+**Student 18 is the top scoring student overall in the gradebook.**
+
+>**Q3.** From your analysis of the gradebook, which homework was toughest on students (i.e. obtained the lowest scores overall? [2pts]
+
+Use the **apply()** function to find the average of each homework grade to determine the lowest scoring homework, the apply() function can be used over the columns by changing the margin argument to 2. 
+```{r}
+scores.hw <- apply(scores, 2, mean, na.rm=TRUE)
+# We are using Margin=2 to apply the mean function to the columns, which would average the homework scores
+scores.hw
+# use which.min() to find the lowest average homework score
+which.min(scores.hw)
+```
+
+**HW 3 was the toughest on students.** 
+
+
+## Add an extra argument to our function
+
+We want to optionally turn the dropping of the lowest assignment score off for grading
+```{r}
+grade2 <- function(x, drop.lowest=TRUE) {
+  # Make sure our scores are all numbers
+  x <- as.numeric(x)
+  # Map NA values to zero
+  x[ which(is.na(x)) ] = 0
+  
+  #Find the mean without the lowest value
+  if(drop.lowest) {
+    mean(x[ -which.min(x) ])
+    } else {
+    mean(x)
+  }
+}
+```
+
+```{r}
+student1 <- c(100,100,100,90)
+grade2(student1, drop.lowest=F)
+```
+
