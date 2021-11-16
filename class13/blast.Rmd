@@ -1,0 +1,32 @@
+---
+title: "Quick analysis of BLAST results"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+blast <- read.delim("mm-second.x.zebrafish.tsv")
+head(blast)
+```
+
+Set the colnames of the data frame. 
+```{r}
+colnames(blast) <- c("qseqid", "sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
+
+```
+
+```{r}
+hist(blast$bitscore)
+```
+
+Use ggplot to make a nicer figure. 
+```{r}
+library(ggplot2)
+ggplot(blast, aes(pident, bitscore)) + geom_point(alpha=0.1)
+```
+
+```{r}
+ggplot(blast, aes((blast$pident * (blast$qend - blast$qstart)), bitscore)) + geom_point(alpha=0.1) + geom_smooth()
+```
+

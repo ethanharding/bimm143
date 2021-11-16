@@ -1,0 +1,200 @@
+---
+title: "Transcriptomics and the analysis of RNA-Seq data"
+author: "Ethan Harding (PID A15468670)"
+date: "11/16/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Import and read countData and colData
+```{r}
+counts <- read.csv("airway_scaledcounts.csv", stringsAsFactors = FALSE, row.names=1)
+metadata <-  read.csv("airway_metadata.csv", stringsAsFactors = FALSE)
+```
+
+Let's have a look at these
+```{r}
+head(counts)
+metadata
+```
+
+> Q1. How many genes are in this dataset?
+
+```{r}
+nrow(counts)
+```
+
+>Q2. How many ‘control’ cell lines do we have?
+
+```{r}
+sum(metadata$dex == "control")
+```
+
+
+#Toy Differential Gene Expression
+
+First, we need to extract all the "control" columns. Then I will take the rowwise mean to get the average count values for all genes in these four experiments. 
+```{r}
+control.inds <- metadata$dex == "control"
+control.counts <- counts[ ,control.inds]
+head(control.counts)
+```
+
+```{r}
+control.mean <- rowMeans(control.counts)
+head(control.mean)
+```
+
+> Q3. How would you make the above code in either approach more robust?
+
+Rather than using "Rowsums" then diving by 4, use "Rowmeans", that way if we were to add more data (aka more rows), the code would still work for the datasets. 
+
+> Q4. Follow the same procedure for the treated samples (i.e. calculate the mean per gene across drug treated samples and assign to a labeled vector called treated.mean)
+Do the same thing for the "treated" columns.
+
+```{r}
+treated.inds <- metadata$dex == "treated"
+treated.counts <- counts[ ,treated.inds]
+head(treated.counts)
+```
+
+```{r}
+treated.mean <- rowMeans(treated.counts)
+head(treated.mean)
+```
+
+Combine our meancount data for bookkeeping purposes. 
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+```
+
+> Q5. Create a scatter plot showing the mean of the treated samples against the mean of the control samples. Your plot should look something like the following.
+
+```{r}
+plot(meancounts, xlab="Control", ylab="Treated")
+```
+
+> Q6. Try plotting both axes on a log scale. What is the argument to plot() that allows you to do this?
+
+```{r}
+plot(meancounts, xlab="Control", ylab="Treated", log="xy")
+```
+
+We see 0 values for no change, + values for increases and - values for decreases. This nice property leads us to work with **log2(fold-change)** all the time in the genomics and proteomics field. 
+
+Let's add the **log2(fold-change)** to our `meancounts` dataframe.    
+```{r}
+meancounts$log2fc <- log2(meancounts[,"treated.mean"]/meancounts[,"control.mean"])
+head(meancounts)
+```
+
+Filter the data to remove the genes with zero expression. 
+```{r}
+zero.vals <- which(meancounts[,1:2]==0, arr.ind=TRUE)
+
+to.rm <- unique(zero.vals[,1])
+mycounts <- meancounts[-to.rm,]
+head(mycounts)
+```
+
+> Q7. What is the purpose of the arr.ind argument in the which() function call above? Why would we then take the first column of the output and need to call the unique() function?
+
+I can use the **which()** function with the `arr.ind=TRUE` argument to get the columns and rows where the TRUE values are (i.e the zero counts in our case). Using the `unique()` function ensured we do not count any same row twice. 
+
+How many genes do we have left after removing those with zero expression?
+```{r}
+nrow(mycounts)
+```
+
+
+A common threshold used for calling something differentially expressed is a log2(FoldChange) of greater than 2 or less than -2. Let’s filter the dataset both ways to see how many genes are up or down-regulated.
+```{r}
+up.ind <- mycounts$log2fc > 2
+down.ind <- mycounts$log2fc < (-2)
+```
+
+>Q8. Using the up.ind vector above can you determine how many up regulated genes we have at the greater than 2 fc level? 
+
+```{r}
+sum(up.ind)
+```
+
+> Q9. Using the down.ind vector above can you determine how many down regulated genes we have at the greater than 2 fc level?
+
+```{r}
+sum(down.ind)
+```
+
+> Q10. Do you trust these results? Why or why not?
+
+No, because we do not know if the fold-change levels are statistically different. 
+
+# DESeq2 Analysis
+
+Load DESeq2.
+```{r}
+library(DESeq2)
+```
+
+We need to first setup the input for DESeq2. 
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=counts, 
+                              colData=metadata, 
+                              design=~dex)
+dds
+```
+
+Now we can run DESeq analysis. 
+```{r}
+dds <- DESeq(dds)
+```
+
+To get at the results, we use the deseq `results()` function:
+```{r}
+res <- results(dds)
+head(res)
+```
+
+# Volcano Plots
+
+Let’s make a commonly produced visualization from this data, namely a so-called Volcano plot. These summary figures are frequently used to highlight the proportion of genes that are both significantly regulated and display a high fold change.
+
+```{r}
+plot( res$log2FoldChange,  -log(res$padj), 
+      xlab="Log2(FoldChange)",
+      ylab="-Log(P-value)")
+
+```
+
+Finally, let's add some color to this plot to draw attention to the genes (i.e. points) we care about - that is those with large fold-change and low pvalues (high -log(pvalues)). 
+
+To make this more useful we can add some guidelines (with the abline() function) and color (with a custom color vector) highlighting genes that have padj<0.05 and the absolute log2FoldChange>2.
+```{r}
+plot( res$log2FoldChange,  -log(res$padj), 
+      xlab="Log2(FoldChange)",
+      ylab="-Log(P-value)")
+
+# Add some cut-off lines
+abline(v=c(-2,2), col="gray", lty=2)
+abline(h=-log(0.05), col="gray", lty=2)
+```
+
+To color the points we will setup a custom color vector indicating transcripts with large fold change and significant differences between conditions:
+```{r}
+# Setup our custom point color vector 
+mycols <- rep("gray", nrow(res))
+mycols[ abs(res$log2FoldChange) > 2 ]  <- "red" 
+
+inds <- (res$padj < 0.01) & (abs(res$log2FoldChange) > 2 )
+mycols[ inds ] <- "blue"
+
+# Volcano plot with custom colors 
+plot( res$log2FoldChange,  -log(res$padj), 
+ col=mycols, ylab="-Log(P-value)", xlab="Log2(FoldChange)" )
+
+# Cut-off lines
+abline(v=c(-2,2), col="gray", lty=2)
+abline(h=-log(0.1), col="gray", lty=2)
+```
+

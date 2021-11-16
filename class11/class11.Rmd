@@ -2,7 +2,9 @@
 title: "class11"
 author: "Ethan Harding (PID A15468670)"
 date: "11/2/2021"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ## Intro to PDB
