@@ -3,8 +3,8 @@ title: 'Class 17: COVID-19 Vaccination Rates'
 author: "Ethan Harding (PID A15468670)"
 date: "11/23/2021"
 output:
-  html_document: default
-  pdf_document: default
+  pdf_document:
+    latex_engine: xelatex
 ---
 
 # Getting Started
